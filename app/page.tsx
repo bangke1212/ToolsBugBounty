@@ -5,6 +5,7 @@ import { useBugBountyStore } from "../lib/store";
 import { CHAINS } from "../lib/chains";
 import WalletBar from "../components/WalletBar";
 import Dashboard from "../components/Dashboard";
+import ScanUrl from "../components/ScanUrl";
 import Targets from "../components/Targets";
 import Recon from "../components/Recon";
 import Findings from "../components/Findings";
@@ -19,6 +20,7 @@ import TaxonomyBrowser from "../components/TaxonomyBrowser";
 
 type Tab =
   | "dashboard"
+  | "scan"
   | "target"
   | "recon"
   | "temuan"
@@ -32,6 +34,7 @@ type Tab =
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
+  { id: "scan", label: "Scan URL" },
   { id: "target", label: "Target & Scope" },
   { id: "recon", label: "Recon" },
   { id: "temuan", label: "Temuan" },
@@ -58,8 +61,10 @@ export default function Home() {
             SIMULASI
           </span>
           Hunter Command Center — prototipe untuk menemukan bug bounty di website dan blockchain.
-          Tidak ada pemindaian sungguhan terhadap target live, tidak ada smart contract
-          ter-deploy, dan tidak ada dana sungguhan. Hanya uji kerentanan pada target berizin.
+          Pemindaian sungguhan hanya lewat worker Nuclei yang kamu jalankan sendiri terhadap
+          target berizin; tanpa worker, semua data di sini hanya simulasi lokal. Tidak ada smart
+          contract ter-deploy, dan tidak ada dana sungguhan. Hanya uji kerentanan pada target
+          berizin.
         </p>
       </div>
 
@@ -71,8 +76,9 @@ export default function Home() {
           Hunter Command Center
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600 sm:text-base">
-          Kelola target dan scope, jalankan recon terpandu, lacak temuan, susun rantai serangan,
-          minta analisis AI, dan susun laporan bug bounty — dengan taksonomi 191 skill dan modul
+          Kelola target dan scope, pindai URL target berizin dengan Nuclei (tab Scan URL, perlu
+          worker lokal), jalankan recon terpandu, lacak temuan, susun rantai serangan, minta
+          analisis AI, dan susun laporan bug bounty — dengan taksonomi 191 skill dan modul
           Platform bounty on-chain di dalamnya. Semua data tersimpan lokal di browser
           (localStorage) sebagai simulasi; temuan juga bisa dibagikan lewat Live Feed (Vercel
           KV) bila sudah dikonfigurasi.
@@ -100,6 +106,7 @@ export default function Home() {
 
         <section className="mt-6">
           {tab === "dashboard" && <Dashboard store={store} goToTab={(t) => setTab(t as Tab)} />}
+          {tab === "scan" && <ScanUrl store={store} />}
           {tab === "target" && <Targets store={store} />}
           {tab === "recon" && <Recon store={store} />}
           {tab === "temuan" && <Findings store={store} />}
@@ -174,8 +181,9 @@ export default function Home() {
       <footer className="border-t border-slate-200 px-4 py-6">
         <p className="mx-auto max-w-6xl text-center text-xs leading-relaxed text-slate-500">
           Hunter Command Center — prototipe simulasi untuk belajar menemukan bug bounty di website
-          dan blockchain. Bukan scanner sungguhan, bukan smart contract, bukan saran investasi,
-          dan tidak ada dana yang bergerak. Taksonomi skill dari
+          dan blockchain. Pemindaian sungguhan hanya lewat worker Nuclei lokal terhadap target
+          berizin; hasil scan adalah kandidat yang wajib diverifikasi manual. Bukan smart
+          contract, bukan saran investasi, dan tidak ada dana yang bergerak. Taksonomi skill dari
           akashrpatil/awesome-offensive-security-skills (Apache-2.0). Uji keamanan hanya pada
           target dengan izin tertulis.
         </p>

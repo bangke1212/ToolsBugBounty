@@ -240,6 +240,11 @@ export default function Findings({ store }: { store: HunterStore }) {
                       Contoh
                     </span>
                   )}
+                  {f.source === "nuclei" && (
+                    <span className="ml-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-800">
+                      Nuclei · Kandidat
+                    </span>
+                  )}
                 </h3>
                 <span className="flex flex-wrap items-center gap-1.5">
                   {(() => {

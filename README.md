@@ -1,14 +1,16 @@
 # Hunter Command Center
 
-Prototipe aplikasi untuk **menemukan bug bounty di website dan blockchain**: kelola
-target dan scope, jalankan recon terpandu, lacak temuan, susun rantai serangan, minta
-analisis AI, dan susun laporan bug bounty — plus modul Platform bounty on-chain di
-dalamnya. Dibangun dengan Next.js (App Router), TypeScript, dan Tailwind CSS. State
+Prototipe aplikasi untuk **menemukan bug bounty di website dan blockchain**: pindai
+URL target berizin dengan Nuclei (tab Scan URL + worker lokal), kelola target dan
+scope, jalankan recon terpandu, lacak temuan, susun rantai serangan, minta analisis
+AI, dan susun laporan bug bounty — plus modul Platform bounty on-chain di dalamnya. Dibangun dengan Next.js (App Router), TypeScript, dan Tailwind CSS. State
 tersimpan di `localStorage` browser; temuan bisa dibagikan lewat Live Feed (Vercel KV)
 bila dikonfigurasi — lihat bagian "Live Feed (Vercel saja)".
 
-> **SIMULASI** — Aplikasi ini adalah prototipe untuk belajar. Tidak ada pemindaian
-> sungguhan terhadap target live, belum ada smart contract yang ter-deploy, tidak ada
+> **SIMULASI** — Aplikasi ini adalah prototipe untuk belajar. Pemindaian sungguhan
+> hanya lewat worker Nuclei yang kamu jalankan sendiri terhadap target berizin;
+> tanpa worker, tidak ada pemindaian yang terjadi. Hasil scan selalu kandidat yang
+> wajib diverifikasi manual. Belum ada smart contract yang ter-deploy, tidak ada
 > dana sungguhan yang bergerak, dan wallet di dalamnya hanya simulasi (tidak ada
 > private key / seed phrase). Uji kerentanan hanya pada target dengan izin tertulis.
 
@@ -28,6 +30,15 @@ bila dikonfigurasi — lihat bagian "Live Feed (Vercel saja)".
   Baru → Dikonfirmasi → Dilaporkan → Dibayar / Ditolak. Temuan terkonfirmasi bisa
   dikirim ke modul Platform sebagai laporan. Setiap temuan menampilkan badge sinkron
   Live Feed ("Tersinkron" / "Lokal saja" / "Gagal sinkron" + coba lagi).
+- **Scan URL (Nuclei)**: ketik URL target berizin, pilih severity + tag template, centang
+  konfirmasi scope (wajib). Job masuk antrean (`POST /api/scans`, anti-SSRF client +
+  server: tolak localhost/IP privat/metadata cloud). Worker terpisah menjalankan
+  binary Nuclei dan mengirim hasil ke `POST /api/scans/[id]/results` (diautentikasi
+  `WORKER_TOKEN`). Riwayat scan + detail temuan (template-id, severity, URL cocok,
+  deskripsi, referensi); temuan bisa diimpor ke Temuan sebagai "Baru" berlabel
+  "Kandidat — perlu verifikasi manual" (dedupe template-id + URL cocok). Bila Nuclei
+  tidak terpasang, scan berstatus "Worker belum siap" — tidak pernah ada temuan palsu.
+  Lihat bagian "Scan URL (Nuclei)" di bawah.
 - **Live Feed (Vercel saja)**: seksi di Dashboard yang menampilkan temuan dari feed
   bersama (Vercel KV) secara live — polling tiap 5 detik, pause saat tab tersembunyi.
   Temuan baru dan perubahan status ke Dikonfirmasi/Dilaporkan otomatis dipublikasi ke
@@ -114,6 +125,62 @@ Cara mengaktifkan:
    "diperbarui x detik lalu", dan temuan baru muncul di feed dalam hitungan detik.
    `GET /api/findings` mengembalikan `{ configured: true, findings: [...] }`.
 
+## Scan URL (Nuclei)
+
+Tab **Scan URL** adalah alur utama untuk menemukan issue nyata di website: ketik
+URL target berizin → job scan masuk antrean → worker Nuclei memindai target →
+temuan kandidat tampil di riwayat scan → impor yang relevan ke Temuan untuk
+diverifikasi manual. Hasil scan **bukan bug terkonfirmasi**: setiap temuan
+berlabel "Kandidat — perlu verifikasi manual" dan hanya bisa diimpor sebagai
+status Baru.
+
+### Arsitektur: aplikasi Vercel + worker terpisah
+
+```
+┌─────────────────────────┐      antrean (KV / memori)      ┌──────────────────┐
+│ Aplikasi (Next.js)      │  ── POST /api/scans ──────────▶ │                  │
+│ di Vercel               │  ◀── POST /api/scans/[id]/     │  Worker Nuclei   │
+│ - form Scan URL         │      results (WORKER_TOKEN)     │  (laptop / VPS)  │
+│ - riwayat + detail scan │                                  │  - npm run worker│
+│ - impor ke Temuan       │                                  │  - nuclei binary │
+└─────────────────────────┘                                  └──────────────────┘
+```
+
+### Kenapa Vercel tidak bisa menjalankan Nuclei
+
+Fungsi serverless Vercel berumur pendek (hitungan detik sampai sekitar satu
+menit) dan tidak dirancang untuk menjalankan binary scanner eksternal. Satu kali
+scan Nuclei butuh waktu menit, mengunduh template, dan membuka banyak koneksi ke
+target — scan akan mati di tengah jalan bila dipaksakan ke Vercel. Karena itu
+mesin scan selalu berjalan di worker terpisah, sementara Vercel hanya menjadi
+aplikasi + antrean + penyimpanan hasil (Vercel KV, pola yang sama seperti Live
+Feed; tanpa KV, antrean memakai memori proses server — mode lokal/dev).
+
+### Menjalankan worker lokal
+
+```bash
+# Terminal 1 — aplikasi
+npm run dev
+
+# Terminal 2 — worker (Nuclei harus terpasang, lihat worker/README.md)
+APP_URL=http://localhost:3000 WORKER_TOKEN=<redacted> npm run worker
+```
+
+Detail lengkap (install Nuclei, env var, deploy worker ke VPS dengan systemd)
+ada di [worker/README.md](worker/README.md). Isi `WORKER_TOKEN` yang sama di
+Environment Variables aplikasi (Vercel) dan di environment worker; tanpa token,
+callback worker hanya diterima dalam mode lokal/dev.
+
+### Endpoint scan
+
+- `POST /api/scans` — buat job (`{ url, severities?, tags?, scopeConfirmed: true }`).
+  Menolak URL privat/internal (anti-SSRF) dan scope yang belum dikonfirmasi (400).
+- `GET /api/scans` — daftar job terbaru (`?status=antri&limit=50`).
+- `GET /api/scans/[id]` — status + temuan satu job.
+- `POST /api/scans/[id]/results` — callback worker (butuh `WORKER_TOKEN` bila
+  diisi di server). Status: `berjalan` (klaim) → `selesai` (+findings) / `gagal`
+  (+error) / `worker-belum-siap` (+instruksi install).
+
 ## Build & Cek Tipe
 
 ```bash
@@ -131,15 +198,20 @@ bila project Vercel sudah terhubung ke repo ini.
 ## Struktur
 
 ```
-app/            # App Router: layout, page (11 tab), globals.css, api/ai (route AI server-side),
-                #   api/findings (route Live Feed server-side, Vercel KV)
-components/     # Dashboard, LiveFeed, Targets, Recon, Findings, AttackChains, AiAssist,
+app/            # App Router: layout, page (12 tab), globals.css, api/ai (route AI server-side),
+                #   api/findings (route Live Feed server-side, Vercel KV),
+                #   api/scans (antrean scan URL: buat job, status, callback worker)
+components/     # Dashboard, ScanUrl, LiveFeed, Targets, Recon, Findings, AttackChains, AiAssist,
                 #   ReportBuilder, Settings, WalletBar, Programs, Reports, Ledger,
                 #   TaxonomyBrowser
 lib/            # chains.ts (32 chain EVM), taxonomy.ts (191 skill ringkas),
                 #   types.ts, store.ts (localStorage + seed), recon.ts (checklist),
                 #   ai.ts (helper client AI), live.ts (tipe + konstanta Live Feed),
-                #   useLiveFeed.ts (hook polling + publish Live Feed)
+                #   useLiveFeed.ts (hook polling + publish Live Feed),
+                #   ssrf.ts (validasi anti-SSRF), scans.ts (tipe + validasi scan),
+                #   scanServer.ts (penyimpanan job KV/memori), useScans.ts (hook antrean scan)
+worker/         # worker.mjs (worker Nuclei: ambil job → jalankan nuclei → kirim hasil),
+                #   README.md (install Nuclei, env var, deploy VPS)
 public/         # Aset statis
 ```
 

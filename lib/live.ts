@@ -74,6 +74,18 @@ export function parseFinding(value: unknown): Finding | null {
   if (!isIsoDate(v.createdAt)) return null;
   if (v.skillName !== undefined && (typeof v.skillName !== "string" || v.skillName.length > 120)) return null;
   if (v.demo !== undefined && typeof v.demo !== "boolean") return null;
+  // Field asal scan (opsional, dipertahankan bila ada — dipakai dedupe impor).
+  const optShort = (key: string, max: number): string | undefined => {
+    const val = v[key];
+    if (val === undefined) return undefined;
+    if (typeof val !== "string" || val.length === 0 || val.length > max) return "__INVALID__";
+    return val.trim();
+  };
+  const source = optShort("source", 40);
+  const scanId = optShort("scanId", 200);
+  const templateId = optShort("templateId", 200);
+  const matchedUrl = optShort("matchedUrl", 2048);
+  if (source === "__INVALID__" || scanId === "__INVALID__" || templateId === "__INVALID__" || matchedUrl === "__INVALID__") return null;
   return {
     id: (v.id as string).trim(),
     title: (v.title as string).trim(),
@@ -87,6 +99,10 @@ export function parseFinding(value: unknown): Finding | null {
     status: v.status as FindingStatus,
     demo: v.demo === true ? true : undefined,
     createdAt: v.createdAt as string,
+    source,
+    scanId,
+    templateId,
+    matchedUrl,
   };
 }
 

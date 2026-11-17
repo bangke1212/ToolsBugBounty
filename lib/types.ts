@@ -141,6 +141,14 @@ export interface Finding {
   status: FindingStatus;
   demo?: boolean;
   createdAt: string;
+  /** Asal temuan: "manual" (default) atau "nuclei" (hasil Scan URL). */
+  source?: string;
+  /** ID job scan sumber (bila source = "nuclei"). */
+  scanId?: string;
+  /** Template Nuclei sumber (bila source = "nuclei"). */
+  templateId?: string;
+  /** URL yang cocok dari output Nuclei (bila source = "nuclei"). */
+  matchedUrl?: string;
 }
 
 export const FINDING_STATUSES: FindingStatus[] = [

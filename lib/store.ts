@@ -267,6 +267,11 @@ interface NewFindingInput {
   severity: Severity;
   description: string;
   steps: string;
+  /** Asal temuan (diisi "nuclei" untuk impor hasil Scan URL). */
+  source?: string;
+  scanId?: string;
+  templateId?: string;
+  matchedUrl?: string;
 }
 
 export function useBugBountyStore() {
@@ -488,6 +493,10 @@ export function useBugBountyStore() {
       steps: input.steps,
       status: "Baru",
       createdAt: new Date().toISOString(),
+      source: input.source || undefined,
+      scanId: input.scanId || undefined,
+      templateId: input.templateId || undefined,
+      matchedUrl: input.matchedUrl || undefined,
     };
     setFindings((prev) => [finding, ...prev]);
     return finding;

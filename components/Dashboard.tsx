@@ -64,6 +64,22 @@ export default function Dashboard({
         </div>
       </div>
 
+      <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Scan URL (Nuclei)</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-600">
+              Ketik URL target berizin, buat job scan, lalu jalankan worker Nuclei di laptop/server
+              untuk mendapatkan kandidat temuan. Hasil scan wajib diverifikasi manual sebelum
+              dianggap bug.
+            </p>
+          </div>
+          <button onClick={() => goToTab("scan")} className={inputCls}>
+            Buka Scan URL
+          </button>
+        </div>
+      </div>
+
       <LiveFeed store={store} goToTab={goToTab} />
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -112,6 +128,7 @@ export default function Dashboard({
           <h2 className="mt-6 text-lg font-bold text-slate-900">Cara Kerja (Simulasi)</h2>
           <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm leading-relaxed text-slate-600">
             <li>Tambah target website / kontrak dan konfirmasi scope berizin.</li>
+            <li>Buat job Scan URL untuk target berizin dan jalankan worker Nuclei (hasilnya kandidat, verifikasi manual).</li>
             <li>Jalankan checklist recon terpandu per target.</li>
             <li>Catat temuan dengan kelas dari taksonomi 191 skill.</li>
             <li>Susun rantai serangan dari temuan, lalu minta analisis AI (bila dikonfigurasi).</li>
