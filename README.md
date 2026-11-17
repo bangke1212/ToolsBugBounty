@@ -4,7 +4,8 @@ Prototipe aplikasi untuk **menemukan bug bounty di website dan blockchain**: kel
 target dan scope, jalankan recon terpandu, lacak temuan, susun rantai serangan, minta
 analisis AI, dan susun laporan bug bounty — plus modul Platform bounty on-chain di
 dalamnya. Dibangun dengan Next.js (App Router), TypeScript, dan Tailwind CSS. State
-tersimpan di `localStorage` browser.
+tersimpan di `localStorage` browser; temuan bisa dibagikan lewat Live Feed (Vercel KV)
+bila dikonfigurasi — lihat bagian "Live Feed (Vercel saja)".
 
 > **SIMULASI** — Aplikasi ini adalah prototipe untuk belajar. Tidak ada pemindaian
 > sungguhan terhadap target live, belum ada smart contract yang ter-deploy, tidak ada
@@ -25,7 +26,14 @@ tersimpan di `localStorage` browser.
 - **Temuan**: tambah temuan (judul, target, kelas kerentanan dari taksonomi 191 skill,
   severity, deskripsi, langkah pemeriksaan — tanpa payload exploit) dengan alur status
   Baru → Dikonfirmasi → Dilaporkan → Dibayar / Ditolak. Temuan terkonfirmasi bisa
-  dikirim ke modul Platform sebagai laporan.
+  dikirim ke modul Platform sebagai laporan. Setiap temuan menampilkan badge sinkron
+  Live Feed ("Tersinkron" / "Lokal saja" / "Gagal sinkron" + coba lagi).
+- **Live Feed (Vercel saja)**: seksi di Dashboard yang menampilkan temuan dari feed
+  bersama (Vercel KV) secara live — polling tiap 5 detik, pause saat tab tersembunyi.
+  Temuan baru dan perubahan status ke Dikonfirmasi/Dilaporkan otomatis dipublikasi ke
+  feed. Kartu feed bisa diimpor ke daftar Temuan lokal ("Simpan ke Temuan", dedupe by
+  id). Tanpa KV, aplikasi tetap jalan mode lokal. Lihat bagian "Live Feed (Vercel
+  saja)" di bawah.
 - **Rantai Serangan**: susun rantai dari temuan (mis. XSS → curi sesi → account
   takeover; SSRF → metadata cloud → RCE) dengan visualisasi langkah dan dampak akhir,
   plus template cepat.
@@ -78,6 +86,34 @@ MODEL_API_MODEL=muse-spark-1.3
    dikonfigurasi" beserta instruksi di atas, dan panel beralih ke panduan manual
    terpandu. Halaman Pengaturan menampilkan model aktif dan log pemakaian AI.
 
+## Live Feed (Vercel saja)
+
+Live Feed memakai **Vercel KV (Redis milik Vercel)** — tanpa layanan pihak ketiga
+baru, tanpa notifikasi HP di jalur ini. Temuan yang hunter simpan, atau yang
+statusnya berubah ke Dikonfirmasi/Dilaporkan, dipublikasi otomatis ke KV lewat
+`POST /api/findings` (fire-and-forget; kegagalan tidak merusak simpan lokal).
+Dashboard mengambil feed lewat `GET /api/findings` dengan polling tiap 5 detik
+(`POLL_MS` di `lib/live.ts`), hanya saat tab terlihat dan perangkat online, dengan
+dukungan `?since=` untuk delta. Badge di daftar Temuan menunjukkan status sinkron
+tiap temuan: "Tersinkron" / "Lokal saja" / "Gagal sinkron" (dengan tombol coba lagi).
+
+Feed hanya berisi temuan yang hunter simpan/konfirmasi — **bukan deteksi otomatis**.
+Tanpa KV yang dikonfigurasi, aplikasi tetap jalan mode lokal dan Dashboard
+menampilkan status abu-abu "Live belum dikonfigurasi".
+
+Cara mengaktifkan:
+
+1. Di dashboard Vercel project ini: **Storage → Create Database → KV** (Redis),
+   lalu attach ke project.
+2. Redeploy — environment variable `KV_REST_API_URL` dan `KV_REST_API_TOKEN`
+   ter-inject otomatis ke project.
+3. Untuk dev lokal: jalankan `vercel env pull` di folder repo, atau salin kedua
+   nilai dari dashboard Storage ke file `.env` (jangan commit — `.env` sudah
+   di-`.gitignore`).
+4. Verifikasi: buka tab Dashboard — badge berubah menjadi **LIVE** hijau dengan
+   "diperbarui x detik lalu", dan temuan baru muncul di feed dalam hitungan detik.
+   `GET /api/findings` mengembalikan `{ configured: true, findings: [...] }`.
+
 ## Build & Cek Tipe
 
 ```bash
@@ -95,13 +131,15 @@ bila project Vercel sudah terhubung ke repo ini.
 ## Struktur
 
 ```
-app/            # App Router: layout, page (11 tab), globals.css, api/ai (route AI server-side)
-components/     # Dashboard, Targets, Recon, Findings, AttackChains, AiAssist,
+app/            # App Router: layout, page (11 tab), globals.css, api/ai (route AI server-side),
+                #   api/findings (route Live Feed server-side, Vercel KV)
+components/     # Dashboard, LiveFeed, Targets, Recon, Findings, AttackChains, AiAssist,
                 #   ReportBuilder, Settings, WalletBar, Programs, Reports, Ledger,
                 #   TaxonomyBrowser
 lib/            # chains.ts (32 chain EVM), taxonomy.ts (191 skill ringkas),
                 #   types.ts, store.ts (localStorage + seed), recon.ts (checklist),
-                #   ai.ts (helper client AI)
+                #   ai.ts (helper client AI), live.ts (tipe + konstanta Live Feed),
+                #   useLiveFeed.ts (hook polling + publish Live Feed)
 public/         # Aset statis
 ```
 

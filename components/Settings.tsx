@@ -1,17 +1,22 @@
 import { useEffect, useState } from "react";
 import { getAiStatus } from "../lib/ai";
 import type { AiStatus } from "../lib/ai";
+import { getLiveStatus } from "../lib/useLiveFeed";
 import { formatDate } from "../lib/types";
 import type { HunterStore } from "../lib/store";
 
 export default function Settings({ store }: { store: HunterStore }) {
   const { aiUsage, clearAiUsage } = store;
   const [status, setStatus] = useState<AiStatus | null>(null);
+  const [liveConfigured, setLiveConfigured] = useState<boolean | null>(null);
 
   useEffect(() => {
     let alive = true;
     getAiStatus().then((s) => {
       if (alive) setStatus(s);
+    });
+    getLiveStatus().then((s) => {
+      if (alive) setLiveConfigured(s.configured);
     });
     return () => {
       alive = false;
@@ -82,6 +87,46 @@ MODEL_API_MODEL=muse-spark-1.3`}
             <li>
               Jangan pernah commit file <code className="font-mono text-xs">.env</code> dan jangan
               pernah menempelkan kunci API di chat, issue, atau screenshot.
+            </li>
+          </ol>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-bold text-slate-900">Live Feed (Vercel KV)</h2>
+          {liveConfigured === null && (
+            <p className="mt-2 text-sm text-slate-500">Memeriksa status Live Feed…</p>
+          )}
+          {liveConfigured !== null && (
+            <dl className="mt-3 space-y-2 text-sm">
+              <div className="flex justify-between gap-2 border-b border-slate-100 pb-2">
+                <dt className="font-medium text-slate-600">Status</dt>
+                <dd className="font-bold text-slate-900">
+                  {liveConfigured ? "Aktif" : "Belum dikonfigurasi"}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="font-medium text-slate-600">Pembaruan</dt>
+                <dd className="text-slate-900">Polling 5 detik, pause saat tab tersembunyi</dd>
+              </div>
+            </dl>
+          )}
+          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-relaxed text-slate-700">
+            <li>
+              Di dashboard Vercel project ini: <strong>Storage → Create Database → KV</strong>{" "}
+              (Redis), lalu attach ke project.
+            </li>
+            <li>
+              Redeploy — env <code className="font-mono text-xs">KV_REST_API_URL</code> dan{" "}
+              <code className="font-mono text-xs">KV_REST_API_TOKEN</code> ter-inject otomatis.
+            </li>
+            <li>
+              Untuk dev lokal: jalankan <code className="font-mono text-xs">vercel env pull</code>{" "}
+              di folder repo, atau salin kedua nilai dari dashboard ke{" "}
+              <code className="font-mono text-xs">.env</code> (jangan commit).
+            </li>
+            <li>
+              Tanpa KV, aplikasi tetap jalan mode lokal. Jalur ini tanpa notifikasi HP — feed
+              hanya berisi temuan yang hunter simpan/konfirmasi.
             </li>
           </ol>
         </div>

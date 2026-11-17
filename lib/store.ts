@@ -15,6 +15,7 @@ import type {
   TargetKind,
 } from "./types";
 import { getChain } from "./chains";
+import type { SyncState } from "./live";
 
 const STORAGE_KEY = "bb-onchain-v1";
 
@@ -224,6 +225,7 @@ interface StoredState {
   chains?: AttackChain[];
   reconDone?: Record<string, string[]>;
   aiUsage?: AiUsageEntry[];
+  liveSync?: Record<string, SyncState>;
 }
 
 interface NewProgramInput {
@@ -278,6 +280,7 @@ export function useBugBountyStore() {
   const [chains, setChains] = useState<AttackChain[]>(SEED_CHAINS);
   const [reconDone, setReconDone] = useState<Record<string, string[]>>(SEED_RECON_DONE);
   const [aiUsage, setAiUsage] = useState<AiUsageEntry[]>([]);
+  const [liveSync, setLiveSync] = useState<Record<string, SyncState>>({});
   const [hydrated, setHydrated] = useState(false);
 
   // Muat state dari localStorage setelah mount (hindari mismatch SSR).
@@ -294,6 +297,7 @@ export function useBugBountyStore() {
         if (Array.isArray(data.chains)) setChains(data.chains);
         if (data.reconDone && typeof data.reconDone === "object") setReconDone(data.reconDone);
         if (Array.isArray(data.aiUsage)) setAiUsage(data.aiUsage);
+        if (data.liveSync && typeof data.liveSync === "object") setLiveSync(data.liveSync);
         if (typeof data.chainId === "number") setChainId(data.chainId);
         if (typeof data.wallet === "string") setWallet(data.wallet);
       }
@@ -318,12 +322,13 @@ export function useBugBountyStore() {
         chains,
         reconDone,
         aiUsage,
+        liveSync,
       };
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch {
       // Penyimpanan penuh / tidak tersedia: abaikan.
     }
-  }, [wallet, chainId, programs, reports, payouts, targets, findings, chains, reconDone, aiUsage, hydrated]);
+  }, [wallet, chainId, programs, reports, payouts, targets, findings, chains, reconDone, aiUsage, liveSync, hydrated]);
 
   const connectWallet = useCallback(() => {
     setWallet(randomAddress());
@@ -494,6 +499,25 @@ export function useBugBountyStore() {
     );
   }, []);
 
+  // Status sinkronisasi satu temuan terhadap Live Feed (tersimpan lokal).
+  const setFindingSync = useCallback((findingId: string, state: SyncState) => {
+    setLiveSync((prev) => ({ ...prev, [findingId]: state }));
+  }, []);
+
+  // Impor temuan dari Live Feed ke daftar Temuan lokal (dedupe by id).
+  // Temuan hasil impor sudah ada di feed, jadi langsung ditandai tersinkron.
+  const importFinding = useCallback(
+    (finding: Finding) => {
+      if (findings.some((f) => f.id === finding.id)) return false;
+      setFindings((prev) =>
+        prev.some((f) => f.id === finding.id) ? prev : [finding, ...prev]
+      );
+      setLiveSync((prev) => ({ ...prev, [finding.id]: "synced" }));
+      return true;
+    },
+    [findings]
+  );
+
   // Kirim temuan yang sudah Dikonfirmasi menjadi laporan Platform.
   const sendFindingToPlatform = useCallback(
     (findingId: string): { ok: boolean; message: string } => {
@@ -584,6 +608,7 @@ export function useBugBountyStore() {
     setChains(SEED_CHAINS);
     setReconDone(SEED_RECON_DONE);
     setAiUsage([]);
+    setLiveSync({});
     setChainId(11155111);
     try {
       window.localStorage.removeItem(STORAGE_KEY);
@@ -644,6 +669,7 @@ export function useBugBountyStore() {
     chains,
     reconDone,
     aiUsage,
+    liveSync,
     stats,
     hydrated,
     connectWallet,
@@ -659,6 +685,8 @@ export function useBugBountyStore() {
     toggleReconStep,
     addFinding,
     setFindingStatus,
+    setFindingSync,
+    importFinding,
     sendFindingToPlatform,
     addChain,
     removeChain,

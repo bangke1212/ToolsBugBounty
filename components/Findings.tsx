@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { TAXONOMY, VULN_CLASSES } from "../lib/taxonomy";
 import { formatDate, targetLabel, FINDING_STATUS_FLOW, SEVERITIES } from "../lib/types";
-import type { FindingStatus, Severity } from "../lib/types";
+import type { Finding, FindingStatus, Severity } from "../lib/types";
 import type { HunterStore } from "../lib/store";
+import { getLiveStatus, publishFinding } from "../lib/useLiveFeed";
 
 const inputCls =
   "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400";
@@ -17,7 +18,15 @@ const STATUS_STYLE: Record<FindingStatus, string> = {
 };
 
 export default function Findings({ store }: { store: HunterStore }) {
-  const { targets, findings, addFinding, setFindingStatus, sendFindingToPlatform } = store;
+  const {
+    targets,
+    findings,
+    liveSync,
+    addFinding,
+    setFindingStatus,
+    setFindingSync,
+    sendFindingToPlatform,
+  } = store;
   const [title, setTitle] = useState("");
   const [targetId, setTargetId] = useState(targets[0]?.id ?? "");
   const [vulnClass, setVulnClass] = useState(VULN_CLASSES[0]);
@@ -27,6 +36,27 @@ export default function Findings({ store }: { store: HunterStore }) {
   const [steps, setSteps] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("Semua");
   const [notice, setNotice] = useState("");
+  const [liveConfigured, setLiveConfigured] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    getLiveStatus().then((s) => {
+      if (alive) setLiveConfigured(s.configured);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Kirim temuan ke Live Feed secara fire-and-forget: kegagalan tidak boleh
+  // merusak simpan lokal. Status sinkron dicatat per temuan.
+  async function publish(finding: Finding) {
+    const res = await publishFinding(finding);
+    setFindingSync(
+      finding.id,
+      res.ok ? "synced" : res.configured ? "failed" : "local"
+    );
+  }
 
   const skillOptions = useMemo(() => {
     const q = skillName.trim().toLowerCase();
@@ -47,7 +77,7 @@ export default function Findings({ store }: { store: HunterStore }) {
     if (!title.trim()) return setNotice("Judul temuan wajib diisi.");
     if (!targetId) return setNotice("Pilih target dulu (tambah target bila belum ada).");
     if (!description.trim()) return setNotice("Deskripsi temuan wajib diisi.");
-    addFinding({
+    const created = addFinding({
       title: title.trim(),
       targetId,
       vulnClass,
@@ -56,6 +86,8 @@ export default function Findings({ store }: { store: HunterStore }) {
       description: description.trim(),
       steps: steps.trim(),
     });
+    // Auto-publish ke Live Feed (fire-and-forget, tidak memblokir UI).
+    void publish(created);
     setTitle("");
     setDescription("");
     setSteps("");
@@ -63,9 +95,24 @@ export default function Findings({ store }: { store: HunterStore }) {
     setNotice("Temuan ditambahkan dengan status Baru.");
   }
 
-  function handleSend(findingId: string) {
-    const res = sendFindingToPlatform(findingId);
+  function handleStatus(finding: Finding, next: FindingStatus) {
+    setFindingStatus(finding.id, next);
+    if (next === "Dikonfirmasi" || next === "Dilaporkan") {
+      // Status penting ikut dipublikasi ke Live Feed.
+      void publish({ ...finding, status: next });
+    } else {
+      // Status lain tidak dipublikasi: lokal kini berbeda dari feed.
+      setFindingSync(finding.id, "local");
+    }
+  }
+
+  function handleSend(finding: Finding) {
+    const res = sendFindingToPlatform(finding.id);
     setNotice(res.message);
+    if (res.ok) {
+      // Temuan kini berstatus Dilaporkan — publikasikan juga ke Live Feed.
+      void publish({ ...finding, status: "Dilaporkan" });
+    }
   }
 
   return (
@@ -169,6 +216,12 @@ export default function Findings({ store }: { store: HunterStore }) {
             </button>
           ))}
         </div>
+        {!liveConfigured && (
+          <p className="text-xs text-slate-500">
+            Live Feed belum dikonfigurasi — temuan tersimpan lokal di browser. Aktifkan lewat
+            tab Pengaturan.
+          </p>
+        )}
         {visibleFindings.length === 0 && (
           <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
             Belum ada temuan dengan status ini.
@@ -188,8 +241,40 @@ export default function Findings({ store }: { store: HunterStore }) {
                     </span>
                   )}
                 </h3>
-                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLE[f.status]}`}>
-                  {f.status}
+                <span className="flex flex-wrap items-center gap-1.5">
+                  {(() => {
+                    const sync = liveSync[f.id] ?? "local";
+                    if (sync === "synced") {
+                      return (
+                        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                          Tersinkron
+                        </span>
+                      );
+                    }
+                    if (sync === "failed") {
+                      return (
+                        <>
+                          <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800">
+                            Gagal sinkron
+                          </span>
+                          <button
+                            onClick={() => void publish(f)}
+                            className="rounded-full border border-red-300 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
+                          >
+                            Coba lagi
+                          </button>
+                        </>
+                      );
+                    }
+                    return (
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                        Lokal saja
+                      </span>
+                    );
+                  })()}
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLE[f.status]}`}>
+                    {f.status}
+                  </span>
                 </span>
               </div>
               <p className="mt-1 text-xs text-slate-500">
@@ -218,7 +303,7 @@ export default function Findings({ store }: { store: HunterStore }) {
                 {next.map((s) => (
                   <button
                     key={s}
-                    onClick={() => setFindingStatus(f.id, s)}
+                    onClick={() => handleStatus(f, s)}
                     className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                   >
                     {s === "Dikonfirmasi" ? "Konfirmasi Temuan" : s}
@@ -226,7 +311,7 @@ export default function Findings({ store }: { store: HunterStore }) {
                 ))}
                 {f.status === "Dikonfirmasi" && (
                   <button
-                    onClick={() => handleSend(f.id)}
+                    onClick={() => handleSend(f)}
                     className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800"
                   >
                     Kirim ke Platform

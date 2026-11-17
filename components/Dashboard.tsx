@@ -1,5 +1,6 @@
 import { formatAmount, formatDate, shortAddress } from "../lib/types";
 import type { HunterStore } from "../lib/store";
+import LiveFeed from "./LiveFeed";
 
 const inputCls = "rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800";
 
@@ -62,6 +63,8 @@ export default function Dashboard({
           </p>
         </div>
       </div>
+
+      <LiveFeed store={store} goToTab={goToTab} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

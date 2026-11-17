@@ -74,7 +74,8 @@ export default function Home() {
           Kelola target dan scope, jalankan recon terpandu, lacak temuan, susun rantai serangan,
           minta analisis AI, dan susun laporan bug bounty — dengan taksonomi 191 skill dan modul
           Platform bounty on-chain di dalamnya. Semua data tersimpan lokal di browser
-          (localStorage) sebagai simulasi.
+          (localStorage) sebagai simulasi; temuan juga bisa dibagikan lewat Live Feed (Vercel
+          KV) bila sudah dikonfigurasi.
         </p>
       </header>
 
