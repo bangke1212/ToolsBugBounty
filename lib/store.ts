@@ -1,5 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Payout, Program, Report, ReportStatus, Severity } from "./types";
+import type {
+  AiPromptKind,
+  AiUsageEntry,
+  AttackChain,
+  ChainStep,
+  Finding,
+  FindingStatus,
+  Payout,
+  Program,
+  Report,
+  ReportStatus,
+  Severity,
+  Target,
+  TargetKind,
+} from "./types";
 import { getChain } from "./chains";
 
 const STORAGE_KEY = "bb-onchain-v1";
@@ -96,12 +110,120 @@ export const SEED_REPORTS: Report[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Seed Hunter Command Center
+// ---------------------------------------------------------------------------
+
+export const SEED_TARGETS: Target[] = [
+  {
+    id: "seed-target-1",
+    kind: "web",
+    name: "Contoh — Aplikasi Web Lab",
+    url: "https://web.contoh-dapp.id",
+    scopeNote: "Lab latihan resmi — hanya path /lab/* dan akun uji sendiri.",
+    authorized: true,
+    demo: true,
+    createdAt: NOW,
+  },
+  {
+    id: "seed-target-2",
+    kind: "contract",
+    name: "Contoh — Kontrak Lending (Sepolia)",
+    contractAddress: "0x1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
+    chainId: 11155111,
+    scopeNote: "Kontrak contoh di Sepolia — alamat demo, bukan kontrak sungguhan.",
+    authorized: true,
+    demo: true,
+    createdAt: NOW,
+  },
+];
+
+export const SEED_FINDINGS: Finding[] = [
+  {
+    id: "seed-finding-1",
+    title: "Contoh — XSS tersimpan di kolom komentar",
+    targetId: "seed-target-1",
+    vulnClass: "XSS",
+    skillName: "xss-reflected-stored-dom",
+    severity: "Medium",
+    description:
+      "Contoh temuan: kolom komentar tidak membersihkan input sehingga skrip dapat tersimpan.",
+    steps: "1. Kirim komentar teks uji di lab. 2. Buka halaman sebagai pengguna lain. 3. Amati apakah teks tampil tanpa encoding.",
+    status: "Dikonfirmasi",
+    demo: true,
+    createdAt: NOW,
+  },
+  {
+    id: "seed-finding-2",
+    title: "Contoh — Cookie session tanpa flag HttpOnly",
+    targetId: "seed-target-1",
+    vulnClass: "XSS",
+    skillName: "dom-based-cross-site-scripting-xss",
+    severity: "Low",
+    description:
+      "Contoh temuan: cookie session tidak memakai flag HttpOnly sehingga bisa dibaca skrip.",
+    steps: "1. Buka DevTools → Application → Cookies. 2. Periksa flag cookie session.",
+    status: "Baru",
+    demo: true,
+    createdAt: NOW,
+  },
+  {
+    id: "seed-finding-3",
+    title: "Contoh — SSRF pada parameter URL gambar",
+    targetId: "seed-target-1",
+    vulnClass: "SSRF",
+    skillName: "ssrf-server-side-request-forgery",
+    severity: "High",
+    description:
+      "Contoh temuan: parameter URL gambar membuat server mengambil alamat yang diberikan.",
+    steps: "1. Isi parameter URL dengan alamat uji milik sendiri. 2. Amati respons server.",
+    status: "Baru",
+    demo: true,
+    createdAt: NOW,
+  },
+];
+
+export const SEED_CHAINS: AttackChain[] = [
+  {
+    id: "seed-chain-1",
+    name: "Contoh — XSS → Account Takeover",
+    steps: [
+      { label: "XSS tersimpan di kolom komentar", findingId: "seed-finding-1" },
+      { label: "Curi cookie session lewat skrip", findingId: "seed-finding-2" },
+      { label: "Pakai session korban untuk masuk sebagai korban" },
+    ],
+    impact: "Pengambilalihan akun pengguna (Account Takeover).",
+    demo: true,
+    createdAt: NOW,
+  },
+  {
+    id: "seed-chain-2",
+    name: "Contoh — SSRF → Akses Metadata Cloud",
+    steps: [
+      { label: "SSRF pada parameter URL gambar", findingId: "seed-finding-3" },
+      { label: "Arahkan ke endpoint metadata cloud internal" },
+    ],
+    impact: "Akses kredensial internal dan eskalasi ke eksekusi perintah.",
+    demo: true,
+    createdAt: NOW,
+  },
+];
+
+export const SEED_RECON_DONE: Record<string, string[]> = {
+  "seed-target-1": ["web-headers", "web-tech"],
+};
+
 interface StoredState {
   wallet: string | null;
   chainId: number;
   programs: Program[];
   reports: Report[];
   payouts: Payout[];
+  targets?: Target[];
+  findings?: Finding[];
+  chains?: AttackChain[];
+  reconDone?: Record<string, string[]>;
+  aiUsage?: AiUsageEntry[];
 }
 
 interface NewProgramInput {
@@ -125,12 +247,37 @@ interface NewReportInput {
   hunter: string;
 }
 
+interface NewTargetInput {
+  kind: TargetKind;
+  name: string;
+  url?: string;
+  contractAddress?: string;
+  chainId?: number;
+  scopeNote: string;
+  authorized: boolean;
+}
+
+interface NewFindingInput {
+  title: string;
+  targetId: string;
+  vulnClass: string;
+  skillName?: string;
+  severity: Severity;
+  description: string;
+  steps: string;
+}
+
 export function useBugBountyStore() {
   const [wallet, setWallet] = useState<string | null>(null);
   const [chainId, setChainId] = useState<number>(11155111);
   const [programs, setPrograms] = useState<Program[]>(SEED_PROGRAMS);
   const [reports, setReports] = useState<Report[]>(SEED_REPORTS);
   const [payouts, setPayouts] = useState<Payout[]>([]);
+  const [targets, setTargets] = useState<Target[]>(SEED_TARGETS);
+  const [findings, setFindings] = useState<Finding[]>(SEED_FINDINGS);
+  const [chains, setChains] = useState<AttackChain[]>(SEED_CHAINS);
+  const [reconDone, setReconDone] = useState<Record<string, string[]>>(SEED_RECON_DONE);
+  const [aiUsage, setAiUsage] = useState<AiUsageEntry[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
   // Muat state dari localStorage setelah mount (hindari mismatch SSR).
@@ -142,6 +289,11 @@ export function useBugBountyStore() {
         if (Array.isArray(data.programs)) setPrograms(data.programs);
         if (Array.isArray(data.reports)) setReports(data.reports);
         if (Array.isArray(data.payouts)) setPayouts(data.payouts);
+        if (Array.isArray(data.targets)) setTargets(data.targets);
+        if (Array.isArray(data.findings)) setFindings(data.findings);
+        if (Array.isArray(data.chains)) setChains(data.chains);
+        if (data.reconDone && typeof data.reconDone === "object") setReconDone(data.reconDone);
+        if (Array.isArray(data.aiUsage)) setAiUsage(data.aiUsage);
         if (typeof data.chainId === "number") setChainId(data.chainId);
         if (typeof data.wallet === "string") setWallet(data.wallet);
       }
@@ -155,12 +307,23 @@ export function useBugBountyStore() {
   useEffect(() => {
     if (!hydrated) return;
     try {
-      const data: StoredState = { wallet, chainId, programs, reports, payouts };
+      const data: StoredState = {
+        wallet,
+        chainId,
+        programs,
+        reports,
+        payouts,
+        targets,
+        findings,
+        chains,
+        reconDone,
+        aiUsage,
+      };
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch {
       // Penyimpanan penuh / tidak tersedia: abaikan.
     }
-  }, [wallet, chainId, programs, reports, payouts, hydrated]);
+  }, [wallet, chainId, programs, reports, payouts, targets, findings, chains, reconDone, aiUsage, hydrated]);
 
   const connectWallet = useCallback(() => {
     setWallet(randomAddress());
@@ -263,10 +426,164 @@ export function useBugBountyStore() {
     [reports, programs]
   );
 
+  // -------------------------------------------------------------------------
+  // Hunter Command Center: target, recon, temuan, rantai, log AI.
+  // -------------------------------------------------------------------------
+
+  const addTarget = useCallback((input: NewTargetInput) => {
+    const target: Target = {
+      id: uid(),
+      kind: input.kind,
+      name: input.name,
+      url: input.kind === "web" ? input.url : undefined,
+      contractAddress: input.kind === "contract" ? input.contractAddress : undefined,
+      chainId: input.kind === "contract" ? input.chainId : undefined,
+      scopeNote: input.scopeNote,
+      authorized: input.authorized,
+      createdAt: new Date().toISOString(),
+    };
+    setTargets((prev) => [target, ...prev]);
+    return target;
+  }, []);
+
+  const setTargetAuthorized = useCallback((targetId: string, authorized: boolean) => {
+    setTargets((prev) =>
+      prev.map((t) => (t.id === targetId ? { ...t, authorized } : t))
+    );
+  }, []);
+
+  const removeTarget = useCallback((targetId: string) => {
+    setTargets((prev) => prev.filter((t) => t.id !== targetId));
+    setReconDone((prev) => {
+      const next = { ...prev };
+      delete next[targetId];
+      return next;
+    });
+  }, []);
+
+  const toggleReconStep = useCallback((targetId: string, stepId: string) => {
+    setReconDone((prev) => {
+      const done = prev[targetId] ?? [];
+      const next = done.includes(stepId)
+        ? done.filter((s) => s !== stepId)
+        : [...done, stepId];
+      return { ...prev, [targetId]: next };
+    });
+  }, []);
+
+  const addFinding = useCallback((input: NewFindingInput) => {
+    const finding: Finding = {
+      id: uid(),
+      title: input.title,
+      targetId: input.targetId,
+      vulnClass: input.vulnClass,
+      skillName: input.skillName || undefined,
+      severity: input.severity,
+      description: input.description,
+      steps: input.steps,
+      status: "Baru",
+      createdAt: new Date().toISOString(),
+    };
+    setFindings((prev) => [finding, ...prev]);
+    return finding;
+  }, []);
+
+  const setFindingStatus = useCallback((findingId: string, status: FindingStatus) => {
+    setFindings((prev) =>
+      prev.map((f) => (f.id === findingId ? { ...f, status } : f))
+    );
+  }, []);
+
+  // Kirim temuan yang sudah Dikonfirmasi menjadi laporan Platform.
+  const sendFindingToPlatform = useCallback(
+    (findingId: string): { ok: boolean; message: string } => {
+      const finding = findings.find((f) => f.id === findingId);
+      if (!finding) return { ok: false, message: "Temuan tidak ditemukan." };
+      if (finding.status !== "Dikonfirmasi") {
+        return { ok: false, message: "Hanya temuan berstatus Dikonfirmasi yang bisa dikirim ke Platform." };
+      }
+      if (!wallet) {
+        return { ok: false, message: "Hubungkan wallet simulasi dulu untuk mengirim ke Platform." };
+      }
+      const program = programs[0];
+      if (!program) {
+        return { ok: false, message: "Buat program dulu di tab Platform." };
+      }
+      const target = targets.find((t) => t.id === finding.targetId);
+      const targetText = target
+        ? target.kind === "web"
+          ? target.url ?? target.name
+          : target.contractAddress ?? target.name
+        : "-";
+      createReport({
+        title: finding.title,
+        programId: program.id,
+        vulnClass: finding.vulnClass,
+        skillName: finding.skillName,
+        severity: finding.severity,
+        description: finding.description,
+        poc: finding.steps,
+        target: targetText,
+        hunter: wallet,
+      });
+      setFindings((prev) =>
+        prev.map((f) => (f.id === finding.id ? { ...f, status: "Dilaporkan" } : f))
+      );
+      return { ok: true, message: `Temuan dikirim ke program ${program.name} sebagai laporan (simulasi).` };
+    },
+    [findings, wallet, programs, targets, createReport]
+  );
+
+  const addChain = useCallback((name: string, steps: ChainStep[], impact: string) => {
+    const chain: AttackChain = {
+      id: uid(),
+      name,
+      steps,
+      impact,
+      createdAt: new Date().toISOString(),
+    };
+    setChains((prev) => [chain, ...prev]);
+    return chain;
+  }, []);
+
+  const removeChain = useCallback((chainId: string) => {
+    setChains((prev) => prev.filter((c) => c.id !== chainId));
+  }, []);
+
+  const logAiUsage = useCallback(
+    (entry: {
+      model: string;
+      kind: AiPromptKind | string;
+      promptTokens?: number;
+      completionTokens?: number;
+      totalTokens?: number;
+      ok: boolean;
+      note?: string;
+    }) => {
+      const item: AiUsageEntry = {
+        id: uid(),
+        at: new Date().toISOString(),
+        ...entry,
+      };
+      setAiUsage((prev) => [item, ...prev].slice(0, 100));
+      return item;
+    },
+    []
+  );
+
+  const clearAiUsage = useCallback(() => {
+    setAiUsage([]);
+  }, []);
+
   const resetDemo = useCallback(() => {
     setPrograms(SEED_PROGRAMS);
     setReports(SEED_REPORTS);
     setPayouts([]);
+    setTargets(SEED_TARGETS);
+    setFindings(SEED_FINDINGS);
+    setChains(SEED_CHAINS);
+    setReconDone(SEED_RECON_DONE);
+    setAiUsage([]);
     setChainId(11155111);
     try {
       window.localStorage.removeItem(STORAGE_KEY);
@@ -287,6 +604,15 @@ export function useBugBountyStore() {
     for (const r of reports) {
       byStatus.set(r.status, (byStatus.get(r.status) ?? 0) + 1);
     }
+    const findingsBySeverity = new Map<string, number>();
+    const findingsByStatus = new Map<string, number>();
+    for (const f of findings) {
+      findingsBySeverity.set(f.severity, (findingsBySeverity.get(f.severity) ?? 0) + 1);
+      findingsByStatus.set(f.status, (findingsByStatus.get(f.status) ?? 0) + 1);
+    }
+    const authorizedTargets = targets.filter((t) => t.authorized).length;
+    const aiCalls = aiUsage.filter((u) => u.ok).length;
+    const aiTokens = aiUsage.reduce((sum, u) => sum + (u.totalTokens ?? 0), 0);
     return {
       totalPrograms: programs.length,
       totalReports: reports.length,
@@ -295,8 +621,16 @@ export function useBugBountyStore() {
       paidByToken: [...paidByToken.entries()],
       totalHunters: hunters.size,
       byStatus,
+      totalTargets: targets.length,
+      authorizedTargets,
+      totalFindings: findings.length,
+      findingsBySeverity,
+      findingsByStatus,
+      totalChains: chains.length,
+      aiCalls,
+      aiTokens,
     };
-  }, [programs, reports, payouts]);
+  }, [programs, reports, payouts, targets, findings, chains, aiUsage]);
 
   return {
     wallet,
@@ -305,6 +639,11 @@ export function useBugBountyStore() {
     programs,
     reports,
     payouts,
+    targets,
+    findings,
+    chains,
+    reconDone,
+    aiUsage,
     stats,
     hydrated,
     connectWallet,
@@ -314,8 +653,21 @@ export function useBugBountyStore() {
     createReport,
     setReportStatus,
     payReport,
+    addTarget,
+    setTargetAuthorized,
+    removeTarget,
+    toggleReconStep,
+    addFinding,
+    setFindingStatus,
+    sendFindingToPlatform,
+    addChain,
+    removeChain,
+    logAiUsage,
+    clearAiUsage,
     resetDemo,
   };
 }
 
 export type BugBountyStore = ReturnType<typeof useBugBountyStore>;
+export type HunterStore = BugBountyStore;
+export const useHunterStore = useBugBountyStore;

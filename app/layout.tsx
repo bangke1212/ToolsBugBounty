@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Platform Bug Bounty On-Chain — DApp Simulasi",
+  title: "Hunter Command Center — Temukan Bug Bounty di Website & Blockchain",
   description:
-    "Prototipe platform bug bounty on-chain: program bounty, laporan kerentanan, triase, escrow, dan payout di 32 chain EVM. Semua simulasi — belum ada smart contract ter-deploy.",
+    "Prototipe Hunter Command Center: target & scope, recon terpandu, temuan, rantai serangan, AI Assist, dan laporan bug bounty untuk website dan blockchain di 32 chain EVM. Semua simulasi — hanya target berizin.",
 };
 
 export default function RootLayout({

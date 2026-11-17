@@ -102,3 +102,87 @@ export function formatDate(iso: string): string {
     minute: "2-digit",
   });
 }
+
+// ---------------------------------------------------------------------------
+// Hunter Command Center: target, temuan, rantai serangan, log pemakaian AI.
+// ---------------------------------------------------------------------------
+
+export type TargetKind = "web" | "contract";
+
+export interface Target {
+  id: string;
+  kind: TargetKind;
+  name: string;
+  url?: string;
+  contractAddress?: string;
+  chainId?: number;
+  scopeNote: string;
+  authorized: boolean;
+  demo?: boolean;
+  createdAt: string;
+}
+
+export function targetLabel(t: Target): string {
+  if (t.kind === "web") return t.url ?? t.name;
+  return t.contractAddress ?? t.name;
+}
+
+export type FindingStatus = "Baru" | "Dikonfirmasi" | "Dilaporkan" | "Dibayar" | "Ditolak";
+
+export interface Finding {
+  id: string;
+  title: string;
+  targetId: string;
+  vulnClass: string;
+  skillName?: string;
+  severity: Severity;
+  description: string;
+  steps: string;
+  status: FindingStatus;
+  demo?: boolean;
+  createdAt: string;
+}
+
+export const FINDING_STATUSES: FindingStatus[] = [
+  "Baru",
+  "Dikonfirmasi",
+  "Dilaporkan",
+  "Dibayar",
+  "Ditolak",
+];
+
+export const FINDING_STATUS_FLOW: Record<FindingStatus, FindingStatus[]> = {
+  Baru: ["Dikonfirmasi", "Ditolak"],
+  Dikonfirmasi: ["Dilaporkan", "Ditolak"],
+  Dilaporkan: ["Dibayar", "Ditolak"],
+  Dibayar: [],
+  Ditolak: [],
+};
+
+export interface ChainStep {
+  label: string;
+  findingId?: string;
+}
+
+export interface AttackChain {
+  id: string;
+  name: string;
+  steps: ChainStep[];
+  impact: string;
+  demo?: boolean;
+  createdAt: string;
+}
+
+export type AiPromptKind = "analisis-temuan" | "recon-target" | "rantai-serangan";
+
+export interface AiUsageEntry {
+  id: string;
+  at: string;
+  model: string;
+  kind: string;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  ok: boolean;
+  note?: string;
+}

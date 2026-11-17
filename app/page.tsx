@@ -3,37 +3,51 @@
 import { useState } from "react";
 import { useBugBountyStore } from "../lib/store";
 import { CHAINS } from "../lib/chains";
-import { formatAmount, formatDate, shortAddress } from "../lib/types";
 import WalletBar from "../components/WalletBar";
+import Dashboard from "../components/Dashboard";
+import Targets from "../components/Targets";
+import Recon from "../components/Recon";
+import Findings from "../components/Findings";
+import AttackChains from "../components/AttackChains";
+import AiAssist from "../components/AiAssist";
+import ReportBuilder from "../components/ReportBuilder";
+import Settings from "../components/Settings";
 import Programs from "../components/Programs";
 import Reports from "../components/Reports";
 import Ledger from "../components/Ledger";
 import TaxonomyBrowser from "../components/TaxonomyBrowser";
 
-type Tab = "dashboard" | "program" | "laporan" | "ledger" | "rantai" | "taksonomi";
+type Tab =
+  | "dashboard"
+  | "target"
+  | "recon"
+  | "temuan"
+  | "rantai"
+  | "ai"
+  | "laporan"
+  | "platform"
+  | "rantai-evm"
+  | "taksonomi"
+  | "pengaturan";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
-  { id: "program", label: "Program" },
+  { id: "target", label: "Target & Scope" },
+  { id: "recon", label: "Recon" },
+  { id: "temuan", label: "Temuan" },
+  { id: "rantai", label: "Rantai Serangan" },
+  { id: "ai", label: "AI Assist" },
   { id: "laporan", label: "Laporan" },
-  { id: "ledger", label: "Ledger Payout" },
-  { id: "rantai", label: "Rantai EVM" },
+  { id: "platform", label: "Platform" },
+  { id: "rantai-evm", label: "Rantai EVM" },
   { id: "taksonomi", label: "Taksonomi 191 Skill" },
+  { id: "pengaturan", label: "Pengaturan" },
 ];
 
 export default function Home() {
   const store = useBugBountyStore();
   const [tab, setTab] = useState<Tab>("dashboard");
-  const { stats, programs, reports, payouts, chainId, switchChain, resetDemo } = store;
-
-  const escrowText =
-    stats.escrowByToken.length > 0
-      ? stats.escrowByToken.map(([t, v]) => `${formatAmount(v)} ${t}`).join(" · ")
-      : "0";
-  const paidText =
-    stats.paidByToken.length > 0
-      ? stats.paidByToken.map(([t, v]) => `${formatAmount(v)} ${t}`).join(" · ")
-      : "0";
+  const { payouts, chainId, switchChain } = store;
 
   return (
     <div className="min-h-screen">
@@ -43,22 +57,24 @@ export default function Home() {
           <span className="mr-1 rounded bg-amber-600 px-1.5 py-0.5 text-[11px] font-bold text-white">
             SIMULASI
           </span>
-          Prototipe DApp — belum ada smart contract yang ter-deploy, tidak ada dana sungguhan, dan
-          wallet di sini hanya simulasi. Hanya uji kerentanan pada target berizin.
+          Hunter Command Center — prototipe untuk menemukan bug bounty di website dan blockchain.
+          Tidak ada pemindaian sungguhan terhadap target live, tidak ada smart contract
+          ter-deploy, dan tidak ada dana sungguhan. Hanya uji kerentanan pada target berizin.
         </p>
       </div>
 
       <header className="mx-auto max-w-6xl px-4 pt-8 pb-4">
         <p className="text-xs font-bold tracking-widest text-blue-700 uppercase">
-          Bug Bounty · On-Chain · 32 Chain EVM
+          Bug Bounty · Website &amp; Blockchain · 32 Chain EVM
         </p>
         <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
-          Platform Bug Bounty On-Chain
+          Hunter Command Center
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600 sm:text-base">
-          Buat program bounty, kirim laporan kerentanan dengan klasifikasi taksonomi 191 skill,
-          jalankan triase, dan bayar dari escrow — di semua chain EVM, mainnet dan testnet.
-          Semua alur di halaman ini berjalan lokal di browser (localStorage) sebagai simulasi.
+          Kelola target dan scope, jalankan recon terpandu, lacak temuan, susun rantai serangan,
+          minta analisis AI, dan susun laporan bug bounty — dengan taksonomi 191 skill dan modul
+          Platform bounty on-chain di dalamnya. Semua data tersimpan lokal di browser
+          (localStorage) sebagai simulasi.
         </p>
       </header>
 
@@ -82,123 +98,32 @@ export default function Home() {
         </nav>
 
         <section className="mt-6">
-          {tab === "dashboard" && (
+          {tab === "dashboard" && <Dashboard store={store} goToTab={(t) => setTab(t as Tab)} />}
+          {tab === "target" && <Targets store={store} />}
+          {tab === "recon" && <Recon store={store} />}
+          {tab === "temuan" && <Findings store={store} />}
+          {tab === "rantai" && <AttackChains store={store} />}
+          {tab === "ai" && <AiAssist store={store} />}
+          {tab === "laporan" && <ReportBuilder store={store} />}
+          {tab === "pengaturan" && <Settings store={store} />}
+
+          {tab === "platform" && (
             <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="text-xs font-medium text-slate-500">Total Program</p>
-                  <p className="mt-1 text-2xl font-black text-slate-900">{stats.totalPrograms}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="text-xs font-medium text-slate-500">Total Laporan</p>
-                  <p className="mt-1 text-2xl font-black text-slate-900">{stats.totalReports}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="text-xs font-medium text-slate-500">Escrow Terkunci</p>
-                  <p className="mt-1 text-lg leading-8 font-black text-slate-900">{escrowText}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="text-xs font-medium text-slate-500">Total Dibayar</p>
-                  <p className="mt-1 text-lg leading-8 font-black text-emerald-700">{paidText}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="text-xs font-medium text-slate-500">Hunter Unik</p>
-                  <p className="mt-1 text-2xl font-black text-slate-900">{stats.totalHunters}</p>
-                </div>
-              </div>
-
-              <div className="grid gap-6 lg:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <h2 className="text-lg font-bold text-slate-900">Laporan Terbaru</h2>
-                  {reports.length === 0 ? (
-                    <p className="mt-2 text-sm text-slate-500">Belum ada laporan.</p>
-                  ) : (
-                    <ul className="mt-3 space-y-3">
-                      {reports.slice(0, 5).map((r) => {
-                        const program = programs.find((p) => p.id === r.programId);
-                        return (
-                          <li key={r.id} className="border-b border-slate-100 pb-3 last:border-0 last:pb-0">
-                            <p className="text-sm font-semibold text-slate-900">
-                              {r.title}
-                              {r.demo && (
-                                <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
-                                  Contoh
-                                </span>
-                              )}
-                            </p>
-                            <p className="mt-0.5 text-xs text-slate-500">
-                              {program?.name ?? "—"} · {r.vulnClass} · {r.severity} · {r.status} ·{" "}
-                              {shortAddress(r.hunter)} · {formatDate(r.createdAt)}
-                            </p>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                  <button
-                    onClick={() => setTab("laporan")}
-                    className="mt-4 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
-                  >
-                    Lihat Semua Laporan
-                  </button>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <h2 className="text-lg font-bold text-slate-900">Status Laporan</h2>
-                  <ul className="mt-3 space-y-2 text-sm">
-                    {["Baru", "Triase", "Diterima", "Ditolak", "Duplikat", "Dibayar"].map((s) => (
-                      <li key={s} className="flex items-center justify-between border-b border-slate-100 pb-2 last:border-0">
-                        <span className="font-medium text-slate-700">{s}</span>
-                        <span className="font-bold text-slate-900">{stats.byStatus.get(s) ?? 0}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <h2 className="mt-6 text-lg font-bold text-slate-900">Cara Kerja (Simulasi)</h2>
-                  <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm leading-relaxed text-slate-600">
-                    <li>Hubungkan wallet simulasi dan pilih chain EVM (32 chain).</li>
-                    <li>Buat program bounty — pool escrow terkunci penuh.</li>
-                    <li>Hunter mengirim laporan dengan kelas dari taksonomi 191 skill.</li>
-                    <li>Triase: Baru → Triase → Diterima / Ditolak / Duplikat.</li>
-                    <li>Laporan Diterima dibayar dari escrow; payout tercatat di Ledger dengan hash TX simulasi.</li>
-                  </ol>
-                  <button
-                    onClick={() => {
-                      if (window.confirm("Reset semua data ke contoh awal?")) resetDemo();
-                    }}
-                    className="mt-4 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    Reset ke Data Contoh
-                  </button>
-                </div>
-              </div>
-
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="text-lg font-bold text-slate-900">Pembayaran Terakhir</h2>
-                {payouts.length === 0 ? (
-                  <p className="mt-2 text-sm text-slate-500">
-                    Belum ada pembayaran. Coba alur demo: buka tab Laporan, terima laporan contoh, lalu bayar dari escrow.
-                  </p>
-                ) : (
-                  <ul className="mt-3 space-y-2 text-sm">
-                    {payouts.slice(0, 3).map((p) => (
-                      <li key={p.id} className="flex flex-wrap justify-between gap-2 border-b border-slate-100 pb-2 last:border-0">
-                        <span className="font-medium text-slate-900">{p.reportTitle}</span>
-                        <span className="font-bold text-emerald-700">
-                          +{formatAmount(p.amount)} {p.token}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <h2 className="text-lg font-bold text-slate-900">Modul Platform (On-Chain)</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Fitur aplikasi sebelumnya: program bounty dengan escrow, laporan platform,
+                  triase, dan Ledger Payout. Temuan terkonfirmasi di tab Temuan bisa dikirim ke
+                  sini sebagai laporan.
+                </p>
               </div>
+              <Programs store={store} />
+              <Reports store={store} />
+              <Ledger payouts={payouts} />
             </div>
           )}
 
-          {tab === "program" && <Programs store={store} />}
-          {tab === "laporan" && <Reports store={store} />}
-          {tab === "ledger" && <Ledger payouts={payouts} />}
-
-          {tab === "rantai" && (
+          {tab === "rantai-evm" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-lg font-bold text-slate-900">32 Chain EVM</h2>
               <p className="mt-1 text-sm text-slate-600">
@@ -247,8 +172,9 @@ export default function Home() {
 
       <footer className="border-t border-slate-200 px-4 py-6">
         <p className="mx-auto max-w-6xl text-center text-xs leading-relaxed text-slate-500">
-          Platform Bug Bounty On-Chain — prototipe simulasi untuk belajar. Bukan kontrak pintar
-          sungguhan, bukan saran investasi, dan tidak ada dana yang bergerak. Taksonomi skill dari
+          Hunter Command Center — prototipe simulasi untuk belajar menemukan bug bounty di website
+          dan blockchain. Bukan scanner sungguhan, bukan smart contract, bukan saran investasi,
+          dan tidak ada dana yang bergerak. Taksonomi skill dari
           akashrpatil/awesome-offensive-security-skills (Apache-2.0). Uji keamanan hanya pada
           target dengan izin tertulis.
         </p>
